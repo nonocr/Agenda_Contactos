@@ -1,0 +1,310 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+
+  <!-- UTF-8: acepta todos los caracteres (ñ, tildes, emojis) -->
+  <meta charset="UTF-8" />
+
+  <!-- viewport: adapta la página al tamaño del celular -->
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  
+  <title>Agenda de Contactos</title>
+
+  <!-- manifest: activa la instalación como PWA.
+       Sin esta línea el botón "Instalar" nunca aparece. -->
+  <link rel="manifest" href="manifest.json" />
+
+  <!-- theme-color: tiñe la barra de estado del celular -->
+  <meta name="theme-color" content="#ffffff" />
+
+  <!-- iOS: estas dos líneas activan la instalación en Safari.
+       iOS ignora el manifest, necesita sus propias metas. -->
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <link rel="apple-touch-icon" href="/icons/icon-512.png" />
+
+
+  <!-- ═══════════════════════════════════════════════
+       CSS INLINE: todo el estilo vive aquí adentro.
+       Así el navegador no necesita cargar ningún
+       archivo externo para que la app se vea bien.
+  ═══════════════════════════════════════════════ -->
+  <style>
+
+    /* Reset: quita márgenes y rellenos por defecto.
+       box-sizing hace que el padding no expanda el ancho. */
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    /* Body: fuente, ancho máximo y centrado */
+    body {
+      font-family: sans-serif;   /* fuente del sistema, sin Google Fonts */
+      font-size: 16px;
+      line-height: 1.6;
+      color: #222;
+      background: #fff;
+      max-width: 500px;          /* en desktop no se ve demasiado ancho */
+      margin: 0 auto;            /* centra horizontalmente */
+      padding: 0 16px 60px;
+    }
+
+    header {
+      padding: 24px 0 16px;
+      border-bottom: 2px solid #111;
+      margin-bottom: 28px;
+    }
+
+    header h1 { font-size: 1.4rem; }
+
+    h2 { font-size: 1rem; margin-bottom: 14px; color: #444; }
+
+    /* Formulario: apila los campos en columna con espacio entre ellos */
+    .formulario {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      margin-bottom: 36px;
+    }
+
+    label {
+      font-size: 0.85rem;
+      font-weight: 600;
+      color: #555;
+      margin-top: 6px;
+    }
+
+    input {
+      border: 1px solid #ccc;
+      border-radius: 4px;
+      padding: 10px 12px;
+      font-size: 0.95rem;
+      font-family: sans-serif;   /* los inputs no heredan la fuente del body */
+      width: 100%;
+      outline: none;
+    }
+
+    input:focus { border-color: #2563eb; }
+
+    button {
+      background: #111;
+      color: #fff;
+      border: none;
+      border-radius: 4px;
+      padding: 11px;
+      font-size: 0.95rem;
+      cursor: pointer;
+      font-family: sans-serif;
+      margin-top: 6px;
+    }
+
+    button:hover { background: #333; }
+
+    /* Mensaje de error: min-height reserva espacio aunque esté vacío */
+    .error { color: #dc2626; font-size: 0.85rem; min-height: 20px; }
+
+    #lista { list-style: none; padding: 0; display: flex; flex-direction: column; gap: 10px; }
+
+    /* Tarjeta de cada contacto */
+    .contacto-item {
+      border: 1px solid #ddd;
+      border-radius: 6px;
+      padding: 14px 16px;
+      display: flex;
+      justify-content: space-between;   /* empuja el botón al extremo derecho */
+      align-items: center;
+      gap: 12px;
+    }
+
+    .contacto-info .nombre { font-weight: 600; font-size: 0.95rem; }
+    .contacto-info .detalle { font-size: 0.82rem; color: #666; margin-top: 2px; }
+
+    /* Botón eliminar: discreto y pequeño */
+    .btn-eliminar {
+      background: transparent;
+      color: #dc2626;
+      border: 1px solid #fca5a5;
+      border-radius: 4px;
+      padding: 5px 10px;
+      font-size: 0.8rem;
+      cursor: pointer;
+      margin-top: 0;
+      white-space: nowrap;   /* el texto no se parte en dos líneas */
+      flex-shrink: 0;        /* no se encoge si el nombre es largo */
+    }
+
+    .btn-eliminar:hover { background: #fef2f2; }
+
+    .vacio { color: #999; font-size: 0.9rem; padding: 20px 0; text-align: center; }
+
+  </style>
+</head>
+<body>
+
+  <header>
+    <h1>📋 Agenda</h1>
+  </header>
+
+  <main>
+
+    <!-- FORMULARIO: cada input tiene un id único para leerlo con JS -->
+    <section class="formulario">
+      <h2>Nuevo contacto</h2>
+
+      <label>Nombre</label>
+      <input type="text"  id="input-nombre"   placeholder="Ej: María López"      />
+
+      <label>Teléfono</label>
+      <input type="tel"   id="input-telefono" placeholder="Ej: 8888-1234"       />
+
+      <label>Correo</label>
+      <input type="email" id="input-correo"    placeholder="Ej: maria@correo.com" />
+
+      <!-- onclick llama directamente a la función del <script> de abajo -->
+      <button onclick="agregarContacto()">Guardar contacto</button>
+
+      <p id="mensaje-error" class="error"></p>
+    </section>
+
+    <!-- LISTA: JavaScript insertará las tarjetas dentro de este <ul> -->
+    <section class="lista-seccion">
+      <h2>Mis contactos</h2>
+      <ul id="lista"></ul>
+    </section>
+
+  </main>
+
+
+  <!-- ═══════════════════════════════════════════════
+       JAVASCRIPT INLINE: toda la lógica vive aquí.
+       Al estar dentro del HTML, el navegador lo ejecuta
+       sin necesitar cargar ningún archivo externo.
+       Va al final del body para que el HTML ya exista
+       cuando JavaScript intente encontrar los elementos.
+  ═══════════════════════════════════════════════ -->
+  <script>
+
+    // ── Estado ──────────────────────────────────────────────
+    // localStorage.getItem devuelve texto o null.
+    // JSON.parse convierte ese texto a un arreglo de objetos.
+    // Si no hay nada guardado, usamos un arreglo vacío [].
+    let contactos = JSON.parse(localStorage.getItem('contactos')) || [];
+
+    // ── Referencias al HTML ──────────────────────────────────
+    // getElementById busca el elemento con ese id.
+    // Lo guardamos en constantes para no buscarlo cada vez.
+    const inputNombre   = document.getElementById('input-nombre');
+    const inputTelefono = document.getElementById('input-telefono');
+    const inputCorreo   = document.getElementById('input-correo');
+    const elementoLista = document.getElementById('lista');
+    const mensajeError  = document.getElementById('mensaje-error');
+
+    // Mostramos los contactos guardados al cargar la página
+    renderizarLista();
+
+
+    // ── FUNCIÓN: agregarContacto ─────────────────────────────
+    // Se ejecuta cuando el usuario presiona "Guardar contacto"
+    function agregarContacto() {
+
+      // .value lee el texto del input. .trim() elimina espacios al inicio/final.
+      const nombre   = inputNombre.value.trim();
+      const telefono = inputTelefono.value.trim();
+      const correo   = inputCorreo.value.trim();
+
+      // Validación: el nombre es obligatorio.
+      // Si está vacío, mostramos el error y detenemos la función con return.
+      if (!nombre) {
+        mensajeError.textContent = 'El nombre es obligatorio.';
+        return;
+      }
+
+      mensajeError.textContent = ''; // limpia el error si había uno
+
+      // Objeto que representa un contacto.
+      // Date.now() = número único basado en el tiempo actual → sirve como id.
+      const nuevoContacto = {
+        id:       Date.now(),
+        nombre:   nombre,
+        telefono: telefono,
+        correo:   correo
+      };
+
+      contactos.push(nuevoContacto); // push agrega el elemento al final del arreglo
+
+      // Guardamos en localStorage.
+      // JSON.stringify convierte el arreglo a texto (localStorage solo acepta texto).
+      localStorage.setItem('contactos', JSON.stringify(contactos));
+
+      // Limpiamos los campos para el próximo contacto
+      inputNombre.value   = '';
+      inputTelefono.value = '';
+      inputCorreo.value   = '';
+
+      renderizarLista();
+    }
+
+
+    // ── FUNCIÓN: eliminarContacto ────────────────────────────
+    // Recibe el id del contacto que se quiere borrar
+    function eliminarContacto(id) {
+
+      // filter crea un NUEVO arreglo excluyendo el contacto con ese id.
+      contactos = contactos.filter(c => c.id !== id);
+
+      localStorage.setItem('contactos', JSON.stringify(contactos));
+      renderizarLista();
+    }
+
+
+    // ── FUNCIÓN: renderizarLista ─────────────────────────────
+    // Dibuja todos los contactos en el HTML
+    function renderizarLista() {
+
+      if (contactos.length === 0) {
+        elementoLista.innerHTML = '<li class="vacio">No hay contactos aún.</li>';
+        return;
+      }
+
+      // map convierte cada contacto en HTML.
+      // Backticks (`) permiten strings multilínea y usar ${variable}.
+      // join('') une todos los strings sin comas entre ellos.
+      // innerHTML reemplaza el contenido del <ul> con ese HTML.
+      elementoLista.innerHTML = contactos.map(c => `
+        <li class="contacto-item">
+          <div class="contacto-info">
+            <div class="nombre">${c.nombre}</div>
+            <div class="detalle">${c.telefono || 'Sin teléfono'}</div>
+            <div class="detalle">${c.correo   || 'Sin correo'}</div>
+          </div>
+          <button class="btn-eliminar" onclick="eliminarContacto(${c.id})">Eliminar</button>
+        </li>
+      `).join('');
+    }
+
+
+    // ── Registrar Service Worker ─────────────────────────────
+    //
+    // CORRECCIÓN IMPORTANTE:
+    // El SW solo se registra si hay un servidor activo.
+    // location.protocol !== 'file:' detecta si estamos en
+    // un servidor (http/https) y NO en doble clic (file://).
+    //
+    // ¿Por qué? El SW requiere HTTPS o localhost para funcionar.
+    // Si intentamos registrarlo desde file://, el navegador lanza
+    // un error y puede romper otras partes de la app.
+    // Con este "if", simplemente no se registra en file://
+    // y la app funciona igual (sin offline, pero funciona).
+    if ('serviceWorker' in navigator && location.protocol !== 'file:') {
+
+      navigator.serviceWorker
+        .register('service-worker.js')
+        .then(() => console.log('✅ Service Worker listo'))
+        .catch(err => console.error('❌ Error SW:', err));
+    }
+
+  </script>
+
+</body>
+</html>
